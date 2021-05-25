@@ -3,10 +3,13 @@ filename: scraper.py
 author: Alexander DeForge
 date: 05/24/2021
 purpose: Scrape the website coinmarketcap.com for top N cryptocurrencies and some of their properties at the time.
+  Due to the nature of web scraping, websites may change without notice, affecting the ability of a scraper to scrape.
+  This scraper 'fails open' meaning it will record values it cannot parse as 'None' and continue on with the parsing.
 """
 
 import os
 import re
+import logging
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -14,11 +17,13 @@ from selenium.webdriver.common.by import By
 
 
 CHROMEDRIVER_PATH = os.path.abspath('chromedriver')
+LOG_PATH = os.path.abspath('logs/scraper.log')
 URL = "https://coinmarketcap.com/"
 TOP_N = 100
 
 
 def setup():
+    logging.basicConfig(filename=LOG_PATH, encoding='utf-8', level=logging.INFO)
     options = Options()
     options.add_argument('--headless')
     result = webdriver.Chrome(executable_path=CHROMEDRIVER_PATH, options=options)
@@ -48,7 +53,11 @@ def get_coin_price(columns):
     column = columns[3].findChildren('a')
     price = column[0].text
     price = re.sub(r"[$|,]","",price)  # strip the '$' symbol and ',' symbols
-    result = float(price)    # catch cast exception
+    try:
+        result = float(price)
+    except ValueError:
+        logging.error("Could not cast Coin Price.")
+        result = None
     return result
 
 def get_coin_change24h(columns):
@@ -56,8 +65,12 @@ def get_coin_change24h(columns):
     change24h_sign = 1 if "up" in column.find('span').find('span')['class'][0] else -1
     change24h = column.text
     change24h = re.sub(r"[%]","",change24h)  # strip '%' symbol
-    change24h = float(change24h)    # catch cast exception
-    result = change24h_sign * change24h
+    try:
+        change24h = float(change24h)
+        result = change24h_sign * change24h
+    except ValueError:
+        logging.error("Could not cast 24h %.")
+        result = None
     return result
 
 def get_coin_change7d(columns):
@@ -65,35 +78,51 @@ def get_coin_change7d(columns):
     change7d_sign = 1 if "up" in column.find('span').find('span')['class'][0] else -1
     change7d = column.text
     change7d = re.sub(r"[%]","",change7d)  # strip '%' symbol
-    change7d = float(change7d)  # catch cast exception
-    result = change7d_sign * change7d
+    try:
+        change7d = float(change7d)
+        result = change7d_sign * change7d
+    except ValueError:
+        logging.error("Could not cast 7d %.")
+        result = None
     return result
 
 def get_coin_market_cap(columns):
     column = columns[6].findChildren('span')
     market_cap = column[-1].text
     market_cap = re.sub(r"[$|,]","",market_cap)  # strip '$' symbol and ',' symbols
-    result = int(market_cap)
+    try:
+        result = int(market_cap)
+    except ValueError:
+        logging.error("Could not cast Market Cap.")
+        result = None
     return result
 
 def get_coin_volume24h(columns):
     column = columns[7].find('a').find('p')
     volume24h = column.text
     volume24h = re.sub(r"[$|,]","",volume24h)  # strip '$' symbol and ',' symbols
-    result = int(volume24h)
+    try:
+        result = int(volume24h)
+    except ValueError:
+        logging.error("Could not cast Volume (24h).")
+        result = None
     return result
 
 def get_coin_circulating_supply(columns):
     column = columns[8].find('p')
     circulating_supply = column.text
     circulating_supply = re.sub(r'[A-Z|\s|,]','',circulating_supply)  # strip ',' symbols, whitespace and coin symbol
-    result = int(circulating_supply)
+    try:
+        result = int(circulating_supply)
+    except ValueError:
+        logging.error("Could not cast Circulating Supply.")
+        result = None
     return result
 
 def get_top_n_coin_data(table_rows):
     result = []
     for index, row in enumerate(table_rows):
-        if index >= 2:
+        if index >= TOP_N:
             break
         columns = row.findChildren('td')
         coin_data = {}
@@ -108,8 +137,7 @@ def get_top_n_coin_data(table_rows):
         result.append(coin_data)
     
     if index+1 < TOP_N:
-        # log error
-        pass
+        logging.error("Did not record all " + str(TOP_N) + " records. Could only record " + str(index+1) + "records.")
     
     return result
 
