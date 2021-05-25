@@ -7,13 +7,14 @@ purpose: Scrape the website coinmarketcap.com for top N cryptocurrencies and som
   This scraper 'fails open' meaning it will record values it cannot parse as 'None' and continue on with the parsing.
 """
 
+import sys
 import os
+import time
 import re
 import logging
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
 
 
 CHROMEDRIVER_PATH = os.path.abspath('chromedriver')
@@ -21,9 +22,8 @@ LOG_PATH = os.path.abspath('logs/scraper.log')
 URL = "https://coinmarketcap.com/"
 TOP_N = 100
 
-
 def setup():
-    logging.basicConfig(filename=LOG_PATH, encoding='utf-8', level=logging.INFO)
+    logging.basicConfig(filename=LOG_PATH, level=logging.ERROR)
     options = Options()
     options.add_argument('--headless')
     result = webdriver.Chrome(executable_path=CHROMEDRIVER_PATH, options=options)
@@ -39,8 +39,23 @@ def get_table_with_data(html):
     result = soup.find('tbody').findChildren('tr')
     return result
 
+def row_not_loaded(row):
+    if row.has_attr('class'):  # by inspection
+        return True
+    return False
+
+def scroll_down_page(driver):
+    driver.execute_script("window.scrollBy(0, document.documentElement.clientHeight);")
+    time.sleep(0.5)
+
+def reload_table_rows(driver):
+    html = driver.page_source
+    result = get_table_with_data(html)
+    return result
+
 def get_coin_name(columns):
     column = columns[2].findChildren('p')
+    print(column)
     result = column[0].text
     return result
 
@@ -50,8 +65,8 @@ def get_coin_symbol(columns):
     return result
 
 def get_coin_price(columns):
-    column = columns[3].findChildren('a')
-    price = column[0].text
+    column = columns[3].find('a')
+    price = column.text
     price = re.sub(r"[$|,]","",price)  # strip the '$' symbol and ',' symbols
     try:
         result = float(price)
@@ -119,12 +134,19 @@ def get_coin_circulating_supply(columns):
         result = None
     return result
 
-def get_top_n_coin_data(table_rows):
+def get_top_n_coin_data(table_rows, driver):
+    if len(table_rows) < TOP_N:
+        logging.error("This scraper cannot scrape that many (" + str(TOP_N) + ") records. Exiting.")
+        sys.exit(1)
+
     result = []
-    for index, row in enumerate(table_rows):
-        if index >= TOP_N:
-            break
-        columns = row.findChildren('td')
+    for index in range(TOP_N):
+        if row_not_loaded(table_rows[index]):
+            scroll_down_page(driver)
+            table_rows = reload_table_rows(driver)
+        
+        columns = table_rows[index].findChildren('td')
+
         coin_data = {}
         coin_data["name"] = get_coin_name(columns)
         coin_data["symbol"] = get_coin_symbol(columns)
@@ -136,16 +158,13 @@ def get_top_n_coin_data(table_rows):
         coin_data["circulating_supply"] = get_coin_circulating_supply(columns)
         result.append(coin_data)
     
-    if index+1 < TOP_N:
-        logging.error("Did not record all " + str(TOP_N) + " records. Could only record " + str(index+1) + "records.")
-    
     return result
 
 def main():
     driver = setup()
     html = get_hypertext(driver)
     table_rows = get_table_with_data(html)
-    result = get_top_n_coin_data(table_rows)
+    result = get_top_n_coin_data(table_rows, driver)
     print(result)
 
 if __name__ == "__main__":
