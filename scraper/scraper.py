@@ -1,3 +1,10 @@
+"""
+filename: scraper.py
+author: Alexander DeForge
+date: 05/24/2021
+purpose: Scrape the website coinmarketcap.com for top N cryptocurrencies and some of their properties at the time.
+"""
+
 import os
 import re
 from bs4 import BeautifulSoup
