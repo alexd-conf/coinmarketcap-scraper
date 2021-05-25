@@ -12,6 +12,7 @@ import os
 import time
 import re
 import logging
+from datetime import datetime
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -21,6 +22,8 @@ CHROMEDRIVER_PATH = os.path.abspath('chromedriver')
 LOG_PATH = os.path.abspath('logs/scraper.log')
 URL = "https://coinmarketcap.com/"
 TOP_N = 100
+OUTPUT_CSV_FILENAME = "scraper.csv"
+
 
 def setup():
     logging.basicConfig(filename=LOG_PATH, level=logging.ERROR)
@@ -55,7 +58,6 @@ def reload_table_rows(driver):
 
 def get_coin_name(columns):
     column = columns[2].findChildren('p')
-    print(column)
     result = column[0].text
     return result
 
@@ -134,6 +136,18 @@ def get_coin_circulating_supply(columns):
         result = None
     return result
 
+def write_to_csv(coin_datums):
+    path = os.path.abspath(str(datetime.now()) + OUTPUT_CSV_FILENAME)
+    columns = coin_datums[0].keys()
+    with open(path, 'a') as f:
+        f.write(','.join(columns))
+        f.write("\n")
+        for coin_data in coin_datums:
+            line = [str(coin_data[x]) for x in coin_data.keys()]
+            line = ','.join(line)
+            f.write(line)
+            f.write("\n")
+
 def get_top_n_coin_data(table_rows, driver):
     if len(table_rows) < TOP_N:
         logging.error("This scraper cannot scrape that many (" + str(TOP_N) + ") records. Exiting.")
@@ -141,6 +155,7 @@ def get_top_n_coin_data(table_rows, driver):
 
     result = []
     for index in range(TOP_N):
+
         if row_not_loaded(table_rows[index]):
             scroll_down_page(driver)
             table_rows = reload_table_rows(driver)
@@ -164,8 +179,11 @@ def main():
     driver = setup()
     html = get_hypertext(driver)
     table_rows = get_table_with_data(html)
-    result = get_top_n_coin_data(table_rows, driver)
-    print(result)
+    coin_datums = get_top_n_coin_data(table_rows, driver)
+    write_to_csv(coin_datums)
+    # write_to_db(coin_datums)
 
 if __name__ == "__main__":
+    print("Starting...")
     main()
+    print("Done.")
