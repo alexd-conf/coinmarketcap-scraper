@@ -170,7 +170,7 @@ def get_coin_circulating_supply(columns):
     return result
 
 def write_to_csv(coin_datums):
-    path = os.path.abspath(str(datetime.now()) + OUTPUT_CSV_FILENAME)
+    path = os.path.abspath(str(datetime.now()) + "_" + OUTPUT_CSV_FILENAME)
     columns = coin_datums[0].keys()
     with open(path, 'a') as f:
         f.write(','.join(columns))
