@@ -23,30 +23,41 @@ LOG_PATH = os.path.abspath('logs/scraper.log')
 URL = "https://coinmarketcap.com/"
 TOP_N = 100
 OUTPUT_CSV_FILENAME = "scraper.csv"
+LOGGER_NAME = "scraper_app"
 
 
 def setup():
-    logging.basicConfig(filename=LOG_PATH, level=logging.ERROR)
+    global logger
+    formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
+                                  datefmt='%Y-%m-%d %H:%M:%S')
+    handler = logging.FileHandler(LOG_PATH, mode='a')
+    handler.setFormatter(formatter)
+    logger = logging.getLogger(LOGGER_NAME)
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
+
+    # logging.basicConfig(filename=LOG_PATH, level=logging.INFO)
+
     options = Options()
     options.add_argument('--headless')
     result = webdriver.Chrome(executable_path=CHROMEDRIVER_PATH, options=options)
-    logging.info("Setup complete.")
+    logger.debug("Setup complete.")
     return result
 
 def get_hypertext(driver):
     driver.get(URL)
     result = driver.page_source
-    logging.info("Get Hypertext complete.")
+    logger.debug("Get Hypertext complete.")
     return result
 
 def get_table_with_data(html):
     soup = BeautifulSoup(html, features="html.parser")
     result = soup.find('tbody').findChildren('tr')  # if the table has changed, AttributeError
-    logging.info("Get Table With Data complete.")
+    logger.debug("Get Table With Data complete.")
     return result
 
 def row_not_loaded(row):
-    logging.info("Row Not Loaded being assessed.")
+    logger.debug("Row Not Loaded being assessed.")
     if row.has_attr('class'):  # by inspection
         return True
     return False
@@ -54,21 +65,21 @@ def row_not_loaded(row):
 def scroll_down_page(driver):
     driver.execute_script("window.scrollBy(0, document.documentElement.clientHeight);")
     time.sleep(0.5)
-    logging.info("Scroll Down Page complete.")
+    logger.debug("Scroll Down Page complete.")
 
 def reload_table_rows(driver):
     html = driver.page_source
     result = get_table_with_data(html)
-    logging.info("Reload Table Rows complete.")
+    logger.debug("Reload Table Rows complete.")
     return result
 
 def get_coin_name(columns):
     try:
         column = columns[2].findChildren('p')
         result = column[0].text
-        logging.info("Get Coin Name complete.")
+        logger.debug("Get Coin Name complete.")
     except IndexError:
-        logging.error("Could not parse Name.")
+        logger.error("Could not parse Name.")
         result = None
     return result
 
@@ -76,9 +87,9 @@ def get_coin_symbol(columns):
     try:
         column = columns[2].findChildren('p')
         result = column[1].text
-        logging.info("Get Coin Symbol complete.")
+        logger.debug("Get Coin Symbol complete.")
     except IndexError:
-        logging.error("Could not parse Symbol.")
+        logger.error("Could not parse Symbol.")
         result = None
     return result
 
@@ -88,9 +99,9 @@ def get_coin_price(columns):
         price = column.text
         price = re.sub(r"[$|,]","",price)  # strip the '$' symbol and ',' symbols
         result = float(price)
-        logging.info("Get Coin Price complete.")
+        logger.debug("Get Coin Price complete.")
     except (ValueError, IndexError, AttributeError):
-        logging.error("Could not parse Coin Price.")
+        logger.error("Could not parse Coin Price.")
         result = None
     return result
 
@@ -102,9 +113,9 @@ def get_coin_change24h(columns):
         change24h = re.sub(r"[%]","",change24h)  # strip '%' symbol
         change24h = float(change24h)
         result = change24h_sign * change24h
-        logging.info("Get Coin Change24h complete.")
+        logger.debug("Get Coin Change24h complete.")
     except (ValueError, IndexError, AttributeError):
-        logging.error("Could not parse Coin 24h %.")
+        logger.error("Could not parse Coin 24h %.")
         result = None
     return result
 
@@ -116,9 +127,9 @@ def get_coin_change7d(columns):
         change7d = re.sub(r"[%]","",change7d)  # strip '%' symbol
         change7d = float(change7d)
         result = change7d_sign * change7d
-        logging.info("Get Coin Change7d complete.")
+        logger.debug("Get Coin Change7d complete.")
     except (ValueError, IndexError, AttributeError):
-        logging.error("Could not parse Coin 7d %.")
+        logger.error("Could not parse Coin 7d %.")
         result = None
     return result
 
@@ -128,9 +139,9 @@ def get_coin_market_cap(columns):
         market_cap = column[-1].text
         market_cap = re.sub(r"[$|,]","",market_cap)  # strip '$' symbol and ',' symbols
         result = int(market_cap)
-        logging.info("Get Coin Market Cap complete.")
+        logger.debug("Get Coin Market Cap complete.")
     except (ValueError, IndexError):
-        logging.error("Could not parse Coin Market Cap.")
+        logger.error("Could not parse Coin Market Cap.")
         result = None
     return result
 
@@ -140,9 +151,9 @@ def get_coin_volume24h(columns):
         volume24h = column.text
         volume24h = re.sub(r"[$|,]","",volume24h)  # strip '$' symbol and ',' symbols
         result = int(volume24h)
-        logging.info("Get Coin Volume24h complete.")
+        logger.debug("Get Coin Volume24h complete.")
     except (ValueError, IndexError, AttributeError):
-        logging.error("Could not parse Coin Volume (24h).")
+        logger.error("Could not parse Coin Volume (24h).")
         result = None
     return result
 
@@ -152,9 +163,9 @@ def get_coin_circulating_supply(columns):
         circulating_supply = column.text
         circulating_supply = re.sub(r'[A-Z|\s|,]','',circulating_supply)  # strip ',' symbols, whitespace and coin symbol
         result = int(circulating_supply)
-        logging.info("Get Coin Circulating Supply complete.")
+        logger.debug("Get Coin Circulating Supply complete.")
     except (ValueError, IndexError, AttributeError):
-        logging.error("Could not cast Circulating Supply.")
+        logger.error("Could not cast Circulating Supply.")
         result = None
     return result
 
@@ -169,13 +180,13 @@ def write_to_csv(coin_datums):
             line = ','.join(line)
             f.write(line)
             f.write("\n")
-    logging.info("Write To CSV complete.")
+    logger.debug("Write To CSV complete.")
 
 def get_top_n_coin_data(table_rows, driver):
     if len(table_rows) < TOP_N:
         error = "This scraper cannot scrape that many (" + str(TOP_N) + ") records. Exiting."
         print(error)
-        logging.error(error)
+        logger.error(error)
         sys.exit(1)
 
     result = []
@@ -190,14 +201,14 @@ def get_top_n_coin_data(table_rows, driver):
         coin_data = {}
         coin_data["name"] = get_coin_name(columns)
         coin_data["symbol"] = get_coin_symbol(columns)
-        coin_data["price"] = get_coin_price(columns)
+        coin_data["price(USD)"] = get_coin_price(columns)
         coin_data["change24h"] = get_coin_change24h(columns)
         coin_data["change7d"] = get_coin_change7d(columns)
-        coin_data["market_cap"] = get_coin_market_cap(columns)
-        coin_data["volume24h"] = get_coin_volume24h(columns)
+        coin_data["market_cap(USD)"] = get_coin_market_cap(columns)
+        coin_data["volume24h(USD)"] = get_coin_volume24h(columns)
         coin_data["circulating_supply"] = get_coin_circulating_supply(columns)
         result.append(coin_data)
-    
+    logger.debug("Get Top N Coin Data complete.")
     return result
 
 def main():
@@ -209,7 +220,7 @@ def main():
         write_to_csv(coin_datums)
         # write_to_db(coin_datums)
     except (AttributeError, IndexError):
-        logging.error("Could not parse table containing data. Exiting.")
+        logger.error("Could not parse table containing data. Exiting.")
         sys.exit(1)
 
 if __name__ == "__main__":
