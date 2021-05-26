@@ -16,25 +16,21 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+import sqlite3
+from sqlite3 import Error
 
 
 CHROMEDRIVER_PATH = os.path.abspath('chromedriver')
 LOG_PATH = os.path.abspath('logs/scraper.log')
+DB_PATH = os.path.abspath('db/scrapersqlite.db')
 URL = "https://coinmarketcap.com/"
 TOP_N = 100
 OUTPUT_CSV_FILENAME = "scraper.csv"
 LOGGER_NAME = "scraper_app"
 
 
-def setup():
-    """Performs setup tasks for the program.
-
-    Creates and configures a logger, creates and configures
-    a webdriver.
-
-    Returns:
-        A Chromium based Selenium webdriver.
-    """
+def logger_helper():
+    # set up logger
     global logger
     formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
@@ -44,9 +40,38 @@ def setup():
     logger.setLevel(logging.DEBUG)
     logger.addHandler(handler)
 
+def db_helper():
+    # set up sqlite connection
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        logger.debug("Database setup complete.")
+    except Error as e:
+        logger.error(e)
+    finally:
+        if conn:
+            conn.close()
+
+def webdriver_helper():
+    # set up webdriver
     options = Options()
     options.add_argument('--headless')
     result = webdriver.Chrome(executable_path=CHROMEDRIVER_PATH, options=options)
+    return result
+
+def setup():
+    """Performs setup tasks for the program.
+
+    Creates and configures a logger, creates and configures
+    a webdriver and creates and configures a sqlite database
+    connection.
+
+    Returns:
+        A Chromium based Selenium webdriver.
+    """
+    logger_helper()
+    db_helper()
+    result = webdriver_helper()
     logger.debug("Setup complete.")
     return result
 
