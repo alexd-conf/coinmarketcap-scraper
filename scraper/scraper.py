@@ -143,6 +143,18 @@ def reload_table_rows(driver):
     return result
 
 def get_coin_name(columns):
+    """Parses coin name.
+
+    Parses coin name given a BeautifulSoup Tag object.
+
+    Args:
+        columns: BeautifulSoup Tag object containing columns for
+        row of interest.
+
+    Returns:
+        A string containing the name of the coin for that row
+        or None if parsing fails.
+    """
     try:
         column = columns[2].findChildren('p')
         result = column[0].text
@@ -153,6 +165,18 @@ def get_coin_name(columns):
     return result
 
 def get_coin_symbol(columns):
+    """Parses coin symbol.
+
+    Parses coin symbol given a BeautifulSoup Tag object.
+
+    Args:
+        columns: BeautifulSoup Tag object containing columns for
+        row of interest.
+
+    Returns:
+        A string containing the symbol for the coin for that row
+        or None if parsing fails.
+    """
     try:
         column = columns[2].findChildren('p')
         result = column[1].text
@@ -163,6 +187,18 @@ def get_coin_symbol(columns):
     return result
 
 def get_coin_price(columns):
+    """Parses coin price.
+
+    Parses coin price given a BeautifulSoup Tag object.
+
+    Args:
+        columns: BeautifulSoup Tag object containing columns for
+        row of interest.
+
+    Returns:
+        A float containing the price for the coin for that row
+        or None if parsing fails.
+    """
     try:
         column = columns[3].find('a')
         price = column.text
@@ -175,6 +211,18 @@ def get_coin_price(columns):
     return result
 
 def get_coin_change24h(columns):
+    """Parses coin 24h %.
+
+    Parses coin 24h % given a BeautifulSoup Tag object.
+
+    Args:
+        columns: BeautifulSoup Tag object containing columns for
+        row of interest.
+
+    Returns:
+        A float containing the 24h % for the coin for that row
+        or None if parsing fails.
+    """
     try:
         column = columns[4]
         change24h_sign = 1 if "up" in column.find('span').find('span')['class'][0] else -1
@@ -189,6 +237,18 @@ def get_coin_change24h(columns):
     return result
 
 def get_coin_change7d(columns):
+    """Parses coin 7d %.
+
+    Parses coin 7d % given a BeautifulSoup Tag object.
+
+    Args:
+        columns: BeautifulSoup Tag object containing columns for
+        row of interest.
+
+    Returns:
+        A float containing the 7d % of the coin for that row
+        or None if parsing fails.
+    """
     try:
         column = columns[5]
         change7d_sign = 1 if "up" in column.find('span').find('span')['class'][0] else -1
@@ -203,6 +263,18 @@ def get_coin_change7d(columns):
     return result
 
 def get_coin_market_cap(columns):
+    """Parses coin market cap.
+
+    Parses coin market cap given a BeautifulSoup Tag object.
+
+    Args:
+        columns: BeautifulSoup Tag object containing columns for
+        row of interest.
+
+    Returns:
+        An int containing the market cap for the coin for that row
+        or None if parsing fails.
+    """
     try:
         column = columns[6].findChildren('span')
         market_cap = column[-1].text
@@ -215,6 +287,18 @@ def get_coin_market_cap(columns):
     return result
 
 def get_coin_volume24h(columns):
+    """Parses coin Volume(24h).
+
+    Parses coin Volume(24h) given a BeautifulSoup Tag object.
+
+    Args:
+        columns: BeautifulSoup Tag object containing columns for
+        row of interest.
+
+    Returns:
+        An int containing the Volume(24h) for the coin for that row
+        or None if parsing fails.
+    """
     try:
         column = columns[7].find('a').find('p')
         volume24h = column.text
@@ -227,6 +311,18 @@ def get_coin_volume24h(columns):
     return result
 
 def get_coin_circulating_supply(columns):
+    """Parses coin circulating supply.
+
+    Parses coin circulating supply given a BeautifulSoup Tag object.
+
+    Args:
+        columns: BeautifulSoup Tag object containing columns for
+        row of interest.
+
+    Returns:
+        An int containing the circulating supply for the coin for that row
+        or None if parsing fails.
+    """
     try:
         column = columns[8].find('p')
         circulating_supply = column.text
@@ -239,6 +335,16 @@ def get_coin_circulating_supply(columns):
     return result
 
 def write_to_csv(coin_datums):
+    """Writes data to csv file.
+
+    Writes the data collected to a csv file. The columns are:
+    name, symbol, price(USD), change24h, change7d, market_cap(USD),
+    volume24h(USD), circulating_supply.
+
+    Args:
+        coin_datums: list of dictionaries. Each dictionary contains
+        the data for each coin.
+    """
     path = os.path.abspath(str(datetime.now()) + "_" + OUTPUT_CSV_FILENAME)
     columns = coin_datums[0].keys()
     with open(path, 'a') as f:
@@ -252,6 +358,20 @@ def write_to_csv(coin_datums):
     logger.debug("Write To CSV complete.")
 
 def get_top_n_coin_data(table_rows, driver):
+    """Retrieves data for TOP_N cryptocurrency.
+
+    Iterates over a table of data, row by row, where
+    each row is parsed for specific information.
+
+    Args:
+        table_rows: a BeautifulSoup Tag object containing the
+        hypertext for the table containing coin data.
+        driver: a Selenium webdriver.
+
+    Returns:
+        A list of dictionaries where each dictionary
+        contains data related to a single coin.
+    """
     if len(table_rows) < TOP_N:
         error = "This scraper cannot scrape that many (" + str(TOP_N) + ") records. Exiting."
         print(error)
