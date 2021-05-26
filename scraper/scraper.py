@@ -27,6 +27,14 @@ LOGGER_NAME = "scraper_app"
 
 
 def setup():
+    """Performs setup tasks for the program.
+
+    Creates and configures a logger, creates and configures
+    a webdriver.
+
+    Returns:
+        A Chromium based Selenium webdriver.
+    """
     global logger
     formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
@@ -36,8 +44,6 @@ def setup():
     logger.setLevel(logging.DEBUG)
     logger.addHandler(handler)
 
-    # logging.basicConfig(filename=LOG_PATH, level=logging.INFO)
-
     options = Options()
     options.add_argument('--headless')
     result = webdriver.Chrome(executable_path=CHROMEDRIVER_PATH, options=options)
@@ -45,29 +51,92 @@ def setup():
     return result
 
 def get_hypertext(driver):
+    """Retrieves hypertext from a URL.
+
+    Performs a GET request on the URL "https://coinmarketcap.com"
+    and extracts the hypertext (page source).
+
+    Args:
+        driver: a Selenium webdriver.
+
+    Returns:
+        A string variable containing hypertext (page source).
+    """
     driver.get(URL)
     result = driver.page_source
     logger.debug("Get Hypertext complete.")
     return result
 
 def get_table_with_data(html):
+    """Isolates table with desired data.
+
+    Given the hypertext of the target URL, there is a table which
+    contains the data we want to scrape. This function isolates that
+    table for further parsing.
+
+    Args:
+        html: the hypertext retrieved via GET request from the URL.
+
+    Returns:
+        A BeautifulSoup Tag object containing the table of interest.
+
+    Raises:
+        AttributeError: if the webpage has changed, the table might not be parsable.
+    """
     soup = BeautifulSoup(html, features="html.parser")
-    result = soup.find('tbody').findChildren('tr')  # if the table has changed, AttributeError
+    result = soup.find('tbody').findChildren('tr')
     logger.debug("Get Table With Data complete.")
     return result
 
 def row_not_loaded(row):
+    """Checks to see if a row has loaded.
+
+    Some of the content at the URL is dynamically loaded. In order to
+    scrape a row's contents, the row must have loaded. This function
+    checks for that.
+
+    Args:
+        row: a BeautifulSoup Tag object.
+
+    Returns:
+        This function returns True if the row has NOT loaded and False
+        if the row has loaded.
+    """
     logger.debug("Row Not Loaded being assessed.")
-    if row.has_attr('class'):  # by inspection
+    if row.has_attr('class'):
         return True
     return False
 
 def scroll_down_page(driver):
+    """Instructs the Webdriver to scroll down.
+
+    Instructs the Webdriver to scoll down the height of the client 
+    via injecting a JavaScript command. After the command is injected
+    and executed, the function sleeps for half a second.
+
+    Args:
+        driver: a Selenium webdriver.
+    """
     driver.execute_script("window.scrollBy(0, document.documentElement.clientHeight);")
     time.sleep(0.5)
     logger.debug("Scroll Down Page complete.")
 
 def reload_table_rows(driver):
+    """Reloads the table of data's rows.
+
+    The hypertext retrieved from the URL updates dynamically within
+    the webdriver. When this occurs, the table of data needs to 
+    be retrieved again -- now with populated data.
+
+    Args:
+        driver: a Selenium webdriver.
+
+    Returns:
+        A BeautifulSoup Tag object containing the table of interest.
+
+    Raises:
+        AttributeError: if get_table_with_data raises it.
+    """
     html = driver.page_source
     result = get_table_with_data(html)
     logger.debug("Reload Table Rows complete.")
