@@ -441,6 +441,18 @@ def write_to_csv(coin_datums):
         logger.error("Error writing to CSV file.")
 
 def insert_cryptocurrencies(conn, coin_data):
+    """Insert data into 'cryptocurrencies' table.
+
+    Takes data collected and inserts it into the
+    'cryptocurrencies' table, as applicable.
+
+    Args:
+        conn: sqlite3 database connection object.
+        coin_data: data scraped for one coin.
+    Returns:
+        An int representing the foreign key from the
+        'cryptocurrencies' row entry that was just created.
+    """
     sql_cryptocurrencies_insert = ''' INSERT INTO cryptocurrencies(name,symbol)
                                     VALUES(?,?) '''    
     cur = conn.cursor()
@@ -451,6 +463,15 @@ def insert_cryptocurrencies(conn, coin_data):
     return cryptocurrencies_row_id
 
 def insert_market_data(conn, coin_data, cryptocurrencies_row_id):
+    """Insert data into 'market_data' table.
+
+    Takes data collected and inserts it into the
+    'market_data' table, as applicable.
+
+    Args:
+        conn: sqlite3 database connection object.
+        coin_data: data scraped for one coin.
+    """
     sql_market_data_insert = ''' INSERT INTO market_data(scrape_datetime,price_USD,change24h,change7d,market_cap_USD,volume24h_USD,circulating_supply,cryptocurrencies_id)
                                 VALUES(?,?,?,?,?,?,?,?) '''
     cur = conn.cursor()
