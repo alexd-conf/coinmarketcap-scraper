@@ -30,6 +30,10 @@ LOGGER_NAME = "scraper_app"
 
 
 def logger_helper():
+    """Initializes a logger.
+
+    Initializes a logger and makes the logger object global.
+    """
     # set up logger
     global logger
     formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
@@ -40,19 +44,62 @@ def logger_helper():
     logger.setLevel(logging.DEBUG)
     logger.addHandler(handler)
 
+def initialize_database():
+    """Initializes the database tables.
+
+    Initializes the database with tables if they do not already exist.
+
+    Raises:
+        sqlite3.Error: may be raised if there is an issue with executing the queries.
+    """
+    sql_create_cryptocurrencies_table = """ CREATE TABLE IF NOT EXISTS cryptocurrencies (
+                                    id integer PRIMARY KEY,
+                                    name text,
+                                    symbol text
+                                ); """
+
+    sql_create_market_data_table = """CREATE TABLE IF NOT EXISTS market_data (
+                                    id integer PRIMARY KEY,
+                                    scrape_datetime text NOT NULL,
+                                    price(USD) REAL,
+                                    change24h REAL,
+                                    change7d REAL,
+                                    market_cap(USD) INTEGER,
+                                    volume24h(USD) INTEGER,
+                                    circulating_supply INTEGER,
+                                    FOREIGN KEY (cryptocurrencies_id) REFERENCES cryptocurrencies (id)
+                                );"""
+
+    c = conn.cursor()
+    c.execute(sql_create_cryptocurrencies_table)
+    c.execute(sql_create_market_data_table)
+
 def db_helper():
+    """Initializes the database.
+
+    Creates a connection and creates the schema if it has not already
+    been done. The connection object is made global.
+    """
     # set up sqlite connection
+    global conn
     conn = None
     try:
         conn = sqlite3.connect(DB_PATH)
+        initialize_database()
         logger.debug("Database setup complete.")
     except Error as e:
         logger.error(e)
-    finally:
         if conn:
             conn.close()
 
 def webdriver_helper():
+    """Initializes the webdriver.
+
+    Creates the webdriver object.
+
+    Returns:
+        The Chrome-based webdriver.
+    """
     # set up webdriver
     options = Options()
     options.add_argument('--headless')
@@ -376,11 +423,42 @@ def write_to_csv(coin_datums):
         f.write(','.join(columns))
         f.write("\n")
         for coin_data in coin_datums:
-            line = [str(coin_data[x]) for x in coin_data.keys()]
+            line = [str(coin_data[x]) for x in columns]
             line = ','.join(line)
             f.write(line)
             f.write("\n")
     logger.debug("Write To CSV complete.")
+
+def write_to_db(coin_datums):
+    """Writes data to database.
+
+    Writes the data collected to a sqlite3 database. The schema
+    includes two tables, 'cryptocurrencies' and 'market_data'.
+    The 'cryptocurrencies' table contains fields for the coin name
+    and symbol. The 'market_data' contains fields for price(USD), change24h,
+    change7d, market_cap(USD), volume24h(USD) and circulating_supply.
+
+    Args:
+        coin_datums: list of dictionaries. Each dictionary contains
+        the data for each coin.
+    """
+    for coin_data in coin_datums:
+        sql_cryptocurrencies_insert = ''' INSERT INTO cryptocurrencies(name,symbol)
+                                        VALUES(?,?) '''
+        sql_market_data_insert = ''' INSERT INTO market_data(price(USD),change24h,change7d,market_cap(USD),volume24h,circulating_supply,cryptocurrencies_id)
+                                    VALUES(?,?,?,?,?,?) '''
+                
+        cur = conn.cursor()
+        
+        cur.execute(sql_cryptocurrencies_insert, (coin_data["name"],coin_data["symbol"]))
+        conn.commit()
+
+        cryptocurrencies_row_id = cur.lastrowid  # for the foreign key
+
+        cur.execute(sql_market_data_insert, (coin_data["price(USD)"],coin_data["change24h"],coin_data["change7d"],
+                                             coin_data["market_cap(USD)"],coin_data["volume24h"],
+                                             coin_data["circulating_supply"],cryptocurrencies_row_id))
+        conn.commit()
 
 def get_top_n_coin_data(table_rows, driver):
     """Retrieves data for TOP_N cryptocurrency.
@@ -432,7 +510,7 @@ def main():
         table_rows = get_table_with_data(html)
         coin_datums = get_top_n_coin_data(table_rows, driver)
         write_to_csv(coin_datums)
-        # write_to_db(coin_datums)
+        write_to_db(coin_datums)
     except (AttributeError, IndexError):
         logger.error("Could not parse table containing data. Exiting.")
         sys.exit(1)
