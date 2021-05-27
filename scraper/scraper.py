@@ -44,10 +44,13 @@ def logger_helper():
     logger.setLevel(logging.DEBUG)
     logger.addHandler(handler)
 
-def initialize_database():
+def initialize_database(conn):
     """Initializes the database tables.
 
     Initializes the database with tables if they do not already exist.
+
+    Args:
+        conn: a sqlite3 database connection object.
 
     Raises:
         sqlite3.Error: may be raised if there is an issue with executing the queries.
@@ -58,37 +61,40 @@ def initialize_database():
                                     symbol text
                                 ); """
 
-    sql_create_market_data_table = """CREATE TABLE IF NOT EXISTS market_data (
+    sql_create_market_data_table = """ CREATE TABLE IF NOT EXISTS market_data (
                                     id integer PRIMARY KEY,
                                     scrape_datetime text NOT NULL,
-                                    price(USD) REAL,
+                                    price_USD REAL,
                                     change24h REAL,
                                     change7d REAL,
-                                    market_cap(USD) INTEGER,
-                                    volume24h(USD) INTEGER,
+                                    market_cap_USD INTEGER,
+                                    volume24h_USD INTEGER,
                                     circulating_supply INTEGER,
+                                    cryptocurrencies_id INTEGER NOT NULL,
                                     FOREIGN KEY (cryptocurrencies_id) REFERENCES cryptocurrencies (id)
-                                );"""
+                                ); """
 
-    c = conn.cursor()
-    c.execute(sql_create_cryptocurrencies_table)
-    c.execute(sql_create_market_data_table)
+    cur = conn.cursor()
+    cur.execute(sql_create_cryptocurrencies_table)
+    cur.execute(sql_create_market_data_table)
+    conn.commit()
 
 def db_helper():
     """Initializes the database.
 
     Creates a connection and creates the schema if it has not already
-    been done. The connection object is made global.
+    been done.
     """
     # set up sqlite connection
-    global conn
     conn = None
     try:
         conn = sqlite3.connect(DB_PATH)
-        initialize_database()
+        initialize_database(conn)
         logger.debug("Database setup complete.")
     except Error as e:
         logger.error(e)
+        logger.error("Error initializing database.")
+    finally:
         if conn:
             conn.close()
 
@@ -104,6 +110,7 @@ def webdriver_helper():
     options = Options()
     options.add_argument('--headless')
     result = webdriver.Chrome(executable_path=CHROMEDRIVER_PATH, options=options)
+    logger.debug("Webdriver setup complete.")
     return result
 
 def setup():
@@ -417,17 +424,40 @@ def write_to_csv(coin_datums):
         coin_datums: list of dictionaries. Each dictionary contains
         the data for each coin.
     """
-    path = os.path.abspath(str(datetime.now()) + "_" + OUTPUT_CSV_FILENAME)
+    path = os.path.abspath("csv_files/" + str(datetime.now()) + "_" + OUTPUT_CSV_FILENAME)
     columns = coin_datums[0].keys()
-    with open(path, 'a') as f:
-        f.write(','.join(columns))
-        f.write("\n")
-        for coin_data in coin_datums:
-            line = [str(coin_data[x]) for x in columns]
-            line = ','.join(line)
-            f.write(line)
+    try:
+        with open(path, 'a') as f:
+            f.write(','.join(columns))
             f.write("\n")
-    logger.debug("Write To CSV complete.")
+            for coin_data in coin_datums:
+                line = [str(coin_data[x]) for x in columns]
+                line = ','.join(line)
+                f.write(line)
+                f.write("\n")
+        logger.debug("Write To CSV complete.")
+    except EnvironmentError as e:
+        logger.error(e)
+        logger.error("Error writing to CSV file.")
+
+def insert_cryptocurrencies(conn, coin_data):
+    sql_cryptocurrencies_insert = ''' INSERT INTO cryptocurrencies(name,symbol)
+                                    VALUES(?,?) '''    
+    cur = conn.cursor()
+    datum = (coin_data["name"],coin_data["symbol"])
+    cur.execute(sql_cryptocurrencies_insert, datum)
+    conn.commit()
+    cryptocurrencies_row_id = cur.lastrowid  # for the foreign key    
+    return cryptocurrencies_row_id
+
+def insert_market_data(conn, coin_data, cryptocurrencies_row_id):
+    sql_market_data_insert = ''' INSERT INTO market_data(scrape_datetime,price_USD,change24h,change7d,market_cap_USD,volume24h_USD,circulating_supply,cryptocurrencies_id)
+                                VALUES(?,?,?,?,?,?,?,?) '''
+    cur = conn.cursor()
+    scrape_time = str(datetime.now())
+    datum = (scrape_time,coin_data["price(USD)"],coin_data["change24h"],coin_data["change7d"],coin_data["market_cap(USD)"],coin_data["volume24h(USD)"],coin_data["circulating_supply"],cryptocurrencies_row_id)
+    cur.execute(sql_market_data_insert, datum)
+    conn.commit()
 
 def write_to_db(coin_datums):
     """Writes data to database.
@@ -442,23 +472,18 @@ def write_to_db(coin_datums):
         coin_datums: list of dictionaries. Each dictionary contains
         the data for each coin.
     """
-    for coin_data in coin_datums:
-        sql_cryptocurrencies_insert = ''' INSERT INTO cryptocurrencies(name,symbol)
-                                        VALUES(?,?) '''
-        sql_market_data_insert = ''' INSERT INTO market_data(price(USD),change24h,change7d,market_cap(USD),volume24h,circulating_supply,cryptocurrencies_id)
-                                    VALUES(?,?,?,?,?,?) '''
-                
-        cur = conn.cursor()
-        
-        cur.execute(sql_cryptocurrencies_insert, (coin_data["name"],coin_data["symbol"]))
-        conn.commit()
-
-        cryptocurrencies_row_id = cur.lastrowid  # for the foreign key
-
-        cur.execute(sql_market_data_insert, (coin_data["price(USD)"],coin_data["change24h"],coin_data["change7d"],
-                                             coin_data["market_cap(USD)"],coin_data["volume24h"],
-                                             coin_data["circulating_supply"],cryptocurrencies_row_id))
-        conn.commit()
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        for coin_data in coin_datums:
+            cryptocurrencies_row_id = insert_cryptocurrencies(conn, coin_data)
+            insert_market_data(conn, coin_data, cryptocurrencies_row_id)
+            logger.debug("Write to database complete.")
+    except Error as e:
+        logger.error(e)
+        logger.error("Error writing to database.")
+    finally:
+        if conn:
+            conn.close()
 
 def get_top_n_coin_data(table_rows, driver):
     """Retrieves data for TOP_N cryptocurrency.
