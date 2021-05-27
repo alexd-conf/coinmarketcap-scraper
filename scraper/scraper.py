@@ -453,13 +453,25 @@ def insert_cryptocurrencies(conn, coin_data):
         An int representing the foreign key from the
         'cryptocurrencies' row entry that was just created.
     """
+    sql_cryptocurrencies_select = ''' SELECT id FROM cryptocurrencies WHERE name=? AND symbol=? '''
     sql_cryptocurrencies_insert = ''' INSERT INTO cryptocurrencies(name,symbol)
                                     VALUES(?,?) '''    
-    cur = conn.cursor()
     datum = (coin_data["name"],coin_data["symbol"])
-    cur.execute(sql_cryptocurrencies_insert, datum)
-    conn.commit()
-    cryptocurrencies_row_id = cur.lastrowid  # for the foreign key    
+
+    cur = conn.cursor()
+
+    id = cur.execute(sql_cryptocurrencies_select, datum).fetchall()  # see if this entry has already been inserted
+ 
+    if len(id) > 1:
+        logger.error("Duplicate entries in 'cryptocurrencies' table for coin + " + str(datum))
+
+    if id == []:
+        # otherwise insert it
+        cur.execute(sql_cryptocurrencies_insert, datum)
+        conn.commit()
+        cryptocurrencies_row_id = cur.lastrowid  # for the foreign key
+    else:
+        cryptocurrencies_row_id = int(id[0][0])  # for the foreign key
     return cryptocurrencies_row_id
 
 def insert_market_data(conn, coin_data, cryptocurrencies_row_id):
@@ -498,7 +510,7 @@ def write_to_db(coin_datums):
         for coin_data in coin_datums:
             cryptocurrencies_row_id = insert_cryptocurrencies(conn, coin_data)
             insert_market_data(conn, coin_data, cryptocurrencies_row_id)
-            logger.debug("Write to database complete.")
+        logger.debug("Write to database complete.")
     except Error as e:
         logger.error(e)
         logger.error("Error writing to database.")
