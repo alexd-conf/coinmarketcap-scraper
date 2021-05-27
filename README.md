@@ -14,10 +14,14 @@ Check the version of your Google Chrome installation and download the appropriat
 Once you have done so, please copy the 'chromedriver' file into this project's 'coinmarketcap-scraper/scraper/' directory. The final filepath for the 'chromedriver' file in this project's directory tree should be 'coinmarketcap-scraper/scraper/chromedriver'.
 ## Run the Script
 This script requires Python version 3.x.
-### Install dependencies
-Open a terminal and navigate to the 'coinmarketcap-scraper' directory in this project's directory tree. Run the command  
+### Install Dependencies
+It is recommended that you use a Python virtual environment (virtualenv) when installing dependencies.  
+Open a terminal and navigate to the 'coinmarketcap-scraper/' directory in this project's directory tree. Run the command  
 `pip3 install -r requirements.txt`  
 or equivalent for your system in order to install the dependencies listed in the file 'requirements.txt'.
 ### Execute the Script
 In order to run the script, after you have installed the dependencies, navigate to the 'coinmarketcap-scraper/scraper/' directory in this project's directory tree using a terminal and then run the command  
 `python3 scraper.py`
+## Run the Tests
+Open a terminal and navigate to the 'coinmarketcap-scraper/' directory in this project's directory tree. Run the command  
+`python3 -m unittest`
