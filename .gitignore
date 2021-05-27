@@ -133,3 +133,6 @@ Chromedriver
 
 # CSV files
 .csv
+
+# database file
+.db
