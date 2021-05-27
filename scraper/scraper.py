@@ -12,6 +12,7 @@ import os
 import time
 import re
 import logging
+from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -32,13 +33,12 @@ LOGGER_NAME = "scraper_app"
 def logger_helper():
     """Initializes a logger.
 
-    Initializes a logger and makes the logger object global.
+    Initializes a logger.
     """
     # set up logger
-    global logger
     formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
-    handler = logging.FileHandler(LOG_PATH, mode='a')
+    handler = RotatingFileHandler(LOG_PATH, mode='a', maxBytes=200000, backupCount=10)
     handler.setFormatter(formatter)
     logger = logging.getLogger(LOGGER_NAME)
     logger.setLevel(logging.DEBUG)
@@ -85,6 +85,7 @@ def db_helper():
     Creates a connection and creates the schema if it has not already
     been done.
     """
+    logger = logging.getLogger(LOGGER_NAME)
     # set up sqlite connection
     conn = None
     try:
@@ -106,6 +107,7 @@ def webdriver_helper():
     Returns:
         The Chrome-based webdriver.
     """
+    logger = logging.getLogger(LOGGER_NAME)
     # set up webdriver
     options = Options()
     options.add_argument('--headless')
@@ -126,6 +128,7 @@ def setup():
     logger_helper()
     db_helper()
     result = webdriver_helper()
+    logger = logging.getLogger(LOGGER_NAME)
     logger.debug("Setup complete.")
     return result
 
@@ -141,6 +144,7 @@ def get_hypertext(driver):
     Returns:
         A string variable containing hypertext (page source).
     """
+    logger = logging.getLogger(LOGGER_NAME)
     driver.get(URL)
     result = driver.page_source
     logger.debug("Get Hypertext complete.")
@@ -162,6 +166,7 @@ def get_table_with_data(html):
     Raises:
         AttributeError: if the webpage has changed, the table might not be parsable.
     """
+    logger = logging.getLogger(LOGGER_NAME)
     soup = BeautifulSoup(html, features="html.parser")
     result = soup.find('tbody').findChildren('tr')
     logger.debug("Get Table With Data complete.")
@@ -181,6 +186,7 @@ def row_not_loaded(row):
         This function returns True if the row has NOT loaded and False
         if the row has loaded.
     """
+    logger = logging.getLogger(LOGGER_NAME)
     logger.debug("Row Not Loaded being assessed.")
     if row.has_attr('class'):
         return True
@@ -196,6 +202,7 @@ def scroll_down_page(driver):
     Args:
         driver: a Selenium webdriver.
     """
+    logger = logging.getLogger(LOGGER_NAME)
     driver.execute_script("window.scrollBy(0, document.documentElement.clientHeight);")
     time.sleep(0.5)
     logger.debug("Scroll Down Page complete.")
@@ -216,6 +223,7 @@ def reload_table_rows(driver):
     Raises:
         AttributeError: if get_table_with_data raises it.
     """
+    logger = logging.getLogger(LOGGER_NAME)
     html = driver.page_source
     result = get_table_with_data(html)
     logger.debug("Reload Table Rows complete.")
@@ -234,6 +242,7 @@ def get_coin_name(columns):
         A string containing the name of the coin for that row
         or None if parsing fails.
     """
+    logger = logging.getLogger(LOGGER_NAME)
     try:
         column = columns[2].findChildren('p')
         result = column[0].text
@@ -256,6 +265,7 @@ def get_coin_symbol(columns):
         A string containing the symbol for the coin for that row
         or None if parsing fails.
     """
+    logger = logging.getLogger(LOGGER_NAME)
     try:
         column = columns[2].findChildren('p')
         result = column[1].text
@@ -278,6 +288,7 @@ def get_coin_price(columns):
         A float containing the price for the coin for that row
         or None if parsing fails.
     """
+    logger = logging.getLogger(LOGGER_NAME)
     try:
         column = columns[3].find('a')
         price = column.text
@@ -302,6 +313,7 @@ def get_coin_change24h(columns):
         A float containing the 24h % for the coin for that row
         or None if parsing fails.
     """
+    logger = logging.getLogger(LOGGER_NAME)
     try:
         column = columns[4]
         change24h_sign = 1 if "up" in column.find('span').find('span')['class'][0] else -1
@@ -328,6 +340,7 @@ def get_coin_change7d(columns):
         A float containing the 7d % of the coin for that row
         or None if parsing fails.
     """
+    logger = logging.getLogger(LOGGER_NAME)
     try:
         column = columns[5]
         change7d_sign = 1 if "up" in column.find('span').find('span')['class'][0] else -1
@@ -354,6 +367,7 @@ def get_coin_market_cap(columns):
         An int containing the market cap for the coin for that row
         or None if parsing fails.
     """
+    logger = logging.getLogger(LOGGER_NAME)
     try:
         column = columns[6].findChildren('span')
         market_cap = column[-1].text
@@ -378,6 +392,7 @@ def get_coin_volume24h(columns):
         An int containing the Volume(24h) for the coin for that row
         or None if parsing fails.
     """
+    logger = logging.getLogger(LOGGER_NAME)
     try:
         column = columns[7].find('a').find('p')
         volume24h = column.text
@@ -402,6 +417,7 @@ def get_coin_circulating_supply(columns):
         An int containing the circulating supply for the coin for that row
         or None if parsing fails.
     """
+    logger = logging.getLogger(LOGGER_NAME)
     try:
         column = columns[8].find('p')
         circulating_supply = column.text
@@ -424,6 +440,7 @@ def write_to_csv(coin_datums):
         coin_datums: list of dictionaries. Each dictionary contains
         the data for each coin.
     """
+    logger = logging.getLogger(LOGGER_NAME)
     path = os.path.abspath("csv_files/" + str(datetime.now()) + "_" + OUTPUT_CSV_FILENAME)
     columns = coin_datums[0].keys()
     try:
@@ -453,6 +470,7 @@ def insert_cryptocurrencies(conn, coin_data):
         An int representing the foreign key from the
         'cryptocurrencies' row entry that was just created.
     """
+    logger = logging.getLogger(LOGGER_NAME)
     sql_cryptocurrencies_select = ''' SELECT id FROM cryptocurrencies WHERE name=? AND symbol=? '''
     sql_cryptocurrencies_insert = ''' INSERT INTO cryptocurrencies(name,symbol)
                                     VALUES(?,?) '''    
@@ -505,6 +523,7 @@ def write_to_db(coin_datums):
         coin_datums: list of dictionaries. Each dictionary contains
         the data for each coin.
     """
+    logger = logging.getLogger(LOGGER_NAME)
     try:
         conn = sqlite3.connect(DB_PATH)
         for coin_data in coin_datums:
@@ -533,6 +552,7 @@ def get_top_n_coin_data(table_rows, driver):
         A list of dictionaries where each dictionary
         contains data related to a single coin.
     """
+    logger = logging.getLogger(LOGGER_NAME)
     if len(table_rows) < TOP_N:
         error = "This scraper cannot scrape that many (" + str(TOP_N) + ") records. Exiting."
         print(error)
@@ -570,6 +590,7 @@ def main():
         write_to_csv(coin_datums)
         write_to_db(coin_datums)
     except (AttributeError, IndexError):
+        logger = logging.getLogger(LOGGER_NAME)
         logger.error("Could not parse table containing data. Exiting.")
         sys.exit(1)
 
